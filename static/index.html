@@ -10,13 +10,44 @@
 <body>
   <img id="img" src="" alt="">
 
+  <div id="info"></div>
+
   <script>
     fetch('http://localhost:3000/qrcode/generate').then((res) => {
       res.json().then((data) => {
         console.log('data', data)
         document.getElementById('img').src = data.img;
+
+        queryStatus(data.qrcode_id)
       })
     })
+
+    async function queryStatus(id) {
+      const res = await fetch(`http://localhost:3000/qrcode/check?id=${id}`)
+      const data = await res.json();
+      const status = data.status;
+      let content = '';
+      switch (status) {
+        case 'no-scan':
+          content = '未扫码';
+          break;
+        case 'scan-wait-confirm':
+          content = '已扫码，等待确认';
+          break;
+        case 'scan-confirm':
+          content = '已确认';
+          break;
+        case 'scan-cancel':
+          content = '已取消';
+          break;
+      }
+      document.getElementById('info').textContent = content;
+
+      if (status === 'no-scan' || status === 'scan-wait-confirm') {
+
+        setTimeout(() => queryStatus(id), 1000);
+      }
+    }
   </script>
 </body>
 
