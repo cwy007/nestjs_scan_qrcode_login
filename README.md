@@ -1,98 +1,56 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# NestJS 扫码登录演示 (Scan QR Code Login)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+本项目展示了一个基于 NestJS 的扫码登录实现流程。
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 扫码登录流程
 
-## Description
+整个扫码登录的核心交互涉及三端：**Web前端（PC网页）**、**移动端（扫描设备，App或微信等）** 和 **服务端（NestJS）**。主要步骤如下：
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+1. **生成二维码**：Web 端向服务端请求生成二维码 (`/qrcode/generate`)。服务端生成一个唯一的 UUID 作为标识，将它存入缓存（Map/Redis）初始状态为 `no-scan`（未扫描），并生成对应的二维码图片返回给 Web 端展示。
+2. **轮询状态**：Web 端拿到二维码后，开始定时向服务端轮询该二维码的状态 (`/qrcode/check?id=UUID`)。
+3. **扫码标记**：移动端（已登录状态）扫描该二维码，请求服务端的扫码接口 (`/qrcode/scan?id=UUID`)。服务端将二维码状态更新为 `scan-wait-confirm`（已扫描，等待确认）。Web 端轮询到此状态时，可提示用户“已扫码，请在手机上确认”。
+4. **授权确认/取消**：
+   - **确认**：用户在手机上点击确认登录，移动端携带自身的身份凭证（Token）请求服务端确认接口 (`/qrcode/confirm?id=UUID`)。服务端验证身份后，将二维码状态更新为 `scan-confirm`（已授权登录），并绑定该用户信息。
+   - **取消**：用户在手机上点击取消，请求服务端取消接口 (`/qrcode/cancel?id=UUID`)，状态更新为 `scan-cancel`。
+5. **PC端登录成功**：Web 端再次轮询获取到状态为 `scan-confirm`，同时服务端会在此步骤生成一个新的 JWT Token 返回。Web 端获取到 Token 即完成了登录。
 
-## Project setup
+## 时序图 (Sequence Diagram)
 
-```bash
-$ npm install
+```mermaid
+sequenceDiagram
+    participant Web as Web 端 (PC)
+    participant Server as 服务端 (NestJS)
+    participant Mobile as 移动端 (App/手机)
+
+    %% 1. 生成二维码
+    Web->>Server: 1. 请求生成二维码 /qrcode/generate
+    Server-->>Web: 2. 返回 UUID (qrcode_id) 及 base64 图像
+    note right of Server: Redis/Map 存入:<br/> qrcode_UUID: no-scan
+
+    %% 2. 开始轮询
+    opt 轮询状态
+        Web->>Server: 3. 轮询状态 /qrcode/check?id=UUID
+        Server-->>Web: 返回 status: no-scan
+    end
+
+    %% 3. 扫描二维码
+    Mobile->>Web: 4. 用户使用手机扫描二维码，拿到包含 ID 的链接
+    Mobile->>Server: 5. 扫描通知 /qrcode/scan?id=UUID
+    Server-->>Mobile: 返回成功
+    note right of Server: 更新状态:<br/> qrcode_UUID: scan-wait-confirm
+
+    %% 轮询状态更新
+    Web->>Server: 6. 轮询状态 /qrcode/check?id=UUID
+    Server-->>Web: 返回 status: scan-wait-confirm (提示：已扫码，请确认)
+
+    %% 4. 授权确认
+    Mobile->>Server: 7. 用户点击确认 /qrcode/confirm?id=UUID<br/>(Header 带上移动端 Authorization token)
+    Server->>Server: 校验身份解析出 userID
+    Server-->>Mobile: 返回成功
+    note right of Server: 更新状态为 scan-confirm<br/>并记录 userInfo
+
+    %% 5. 登录完成
+    Web->>Server: 8. 轮询状态 /qrcode/check?id=UUID
+    Server-->>Web: 返回 status: scan-confirm，返回新签发的 JWT Token
+    note left of Web: 登录成功，保存 Token 结束轮询
 ```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
