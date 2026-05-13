@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>扫码登录</title>
+</head>
+
+<body>
+  <img id="img" src="" alt="">
+
+  <script>
+    fetch('http://localhost:3000/qrcode/generate').then((res) => {
+      res.json().then((data) => {
+        console.log('data', data)
+        document.getElementById('img').src = data.img;
+      })
+    })
+  </script>
+</body>
+
+</html>
