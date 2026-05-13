@@ -35,7 +35,7 @@
           content = '已扫码，等待确认';
           break;
         case 'scan-confirm':
-          content = '已确认';
+          content = `已确认登录用户 - ${data.userInfo?.username}`;
           break;
         case 'scan-cancel':
           content = '已取消';

@@ -30,6 +30,10 @@
 </head>
 
 <body>
+  <button id="foo">登录 foo 账号</button>
+  <button id="bar">登录 bar 账号</button>
+
+
   <div id="info">
     是否确认登录 xxx 网站？
   </div>
@@ -41,12 +45,36 @@
 
     const id = params.get('id');
 
+    let token = ""
+    document.getElementById('foo').addEventListener('click', () => {
+      fetch(`http://192.168.1.2:3000/login?username=foo&password=111`).then(res => {
+        // token = res.data.token;
+        return res.json()
+      }).then(data => {
+        token = data.token;
+      });
+    });
+
+    document.getElementById('bar').addEventListener('click', () => {
+      fetch('http://192.168.1.2:3000/login?username=foo&password=111').then(res => {
+        // token = res.data.token;
+        return res.json()
+      }).then(data => {
+        token = data.token;
+      });
+    });
+
+
     fetch('http://192.168.1.2:3000/qrcode/scan?id=' + id).catch(e => {
       alert('scan error');
     });
 
     document.getElementById('confirm').addEventListener('click', () => {
-      fetch('http://192.168.1.2:3000/qrcode/confirm?id=' + id).catch(e => {
+      fetch('http://192.168.1.2:3000/qrcode/confirm?id=' + id, {
+        headers: {
+          authorization: 'Bearer ' + token
+        }
+      }).catch(e => {
         alert('二维码已过期');
       });
     });
