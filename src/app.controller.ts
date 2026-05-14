@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Sse, Get, Headers, Inject, Query, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Controller, Sse, Get, Headers, Header, Inject, Query, UnauthorizedException } from '@nestjs/common';
 import { AppService } from './app.service';
 import { randomUUID } from 'crypto';
 import * as qrcode from 'qrcode';

@@ -35,7 +35,7 @@ export class AppService {
       const universityList: Array<Record<string, any>> = await page.$eval('.u-usitys', el => {
         return [...el.querySelectorAll('.u-usity')].map(item => {
           return {
-            name: item.querySelector('img')!.alt,
+            name: item.querySelector('.f-fs1')?.textContent,
             link: item.getAttribute('href')
           }
         })
@@ -43,7 +43,7 @@ export class AppService {
 
       const ppt = new pptxgen();
 
-      for (let i = 0; i < universityList.length; i++) {
+      for (let i = 0; i < 10; i++) {
         const item = universityList[i];
         await page.goto('https://www.icourse163.org' + item.link, {
           waitUntil: 'domcontentloaded',
@@ -52,7 +52,7 @@ export class AppService {
 
         await page.waitForSelector('.m-cnt');
 
-        const content = await page.$eval('.m-cnt p', el => el.textContent);
+        const content = await page.$eval('.m-cnt p', el => (el as HTMLElement).innerText);
         item.desc = content;
 
         item.img = await page.$eval('.g-doc img', el => el.getAttribute('src'));
@@ -61,7 +61,7 @@ export class AppService {
 
         const slide = ppt.addSlide();
 
-        slide.addText(item.name, { x: '10%', y: '10%', color: '#ff0000', fontSize: 30, align: ppt.AlignH.center, });
+        slide.addText(item.name, { x: '10%', y: '10%', color: '#ff0000', fontSize: 30, fontFace: 'Microsoft YaHei', align: ppt.AlignH.center, });
 
         slide.addImage({
           path: item.img,
@@ -70,7 +70,7 @@ export class AppService {
         });
 
         slide.addText(item.desc,
-          { x: '10%', y: '60%', color: '#000000', fontSize: 14, }
+          { x: '10%', y: '60%', color: '#000000', fontSize: 14, fontFace: 'Microsoft YaHei' }
         );
       }
 
