@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import puppeteer from 'puppeteer';
 import { Observable, Subscriber } from 'rxjs';
+import pptxgen from 'pptxgenjs';
 
 let cache: any = null;
 
@@ -35,26 +36,49 @@ export class AppService {
         return [...el.querySelectorAll('.u-usity')].map(item => {
           return {
             name: item.querySelector('img')!.alt,
-            img: item.querySelector('img')!.src,
             link: item.getAttribute('href')
           }
         })
       });
 
+      const ppt = new pptxgen();
+
       for (let i = 0; i < universityList.length; i++) {
         const item = universityList[i];
-        await page.goto('https://www.icourse163.org' + item.link);
+        await page.goto('https://www.icourse163.org' + item.link, {
+          waitUntil: 'domcontentloaded',
+          timeout: 0
+        });
 
         await page.waitForSelector('.m-cnt');
 
         const content = await page.$eval('.m-cnt p', el => el.textContent);
         item.desc = content;
 
+        item.img = await page.$eval('.g-doc img', el => el.getAttribute('src'));
+
         observer.next({ data: item });
 
+        const slide = ppt.addSlide();
+
+        slide.addText(item.name, { x: '10%', y: '10%', color: '#ff0000', fontSize: 30, align: ppt.AlignH.center, });
+
+        slide.addImage({
+          path: item.img,
+          x: '42%',
+          y: '25%',
+        });
+
+        slide.addText(item.desc,
+          { x: '10%', y: '60%', color: '#000000', fontSize: 14, }
+        );
       }
 
       await browser.close();
+
+      await ppt.writeFile({
+        fileName: '中国所有大学.pptx'
+      })
 
       cache = universityList;
     }
@@ -62,6 +86,6 @@ export class AppService {
     return new Observable((observer) => {
       getData(observer);
     });
-
   }
+
 }
